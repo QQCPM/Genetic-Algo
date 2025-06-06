@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Samuel Arzt's Deep Learning Cars - Ultimate Goal Challenge</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #2a2a2a;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .left-panel {
+            width: 200px;
+            background: #1a1a1a;
+            padding: 15px;
+            box-sizing: border-box;
+            border-right: 1px solid #444;
+        }
+
+        .simulation-area {
+            flex: 1;
+            position: relative;
+            background: #333;
+        }
+
+        .right-panel {
+            width: 250px;
+            background: #1a1a1a;
+            padding: 15px;
+            box-sizing: border-box;
+            border-left: 1px solid #444;
+        }
+
+        canvas {
+            background: #333;
+            border: none;
+            display: block;
+        }
+
+        .output-display {
+            background: #0a0a0a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .output-label {
+            color: #888;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+
+        .output-value {
+            color: #00ff00;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .fitness-display {
+            background: #001100;
+            border: 1px solid #004400;
+        }
+
+        .goal-display {
+            background: #000033;
+            border: 1px solid #0066ff;
+        }
+
+        .generation-counter {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+
+        .evolution-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            display: none;
+            z-index: 1000;
+        }
+
+        .neural-network-panel {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        .panel-title {
+            color: #00ff00;
+            font-size: 12px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #neuralCanvas {
+            background: #000;
+            border: 1px solid #333;
+        }
+
+        .best-car-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 255, 0, 0.8);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            color: black;
+        }
+
+        .controls {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+
+        .control-btn {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 5px 10px;
+            margin: 2px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .control-btn:hover {
+            background: #444;
+        }
+
+        .speed-active {
+            background: #00ff00 !important;
+            color: #000 !important;
+        }
+
+        .goal-indicator {
+            animation: goalPulse 2s infinite;
+        }
+
+        @keyframes goalPulse {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel: Outputs and Fitness -->
+        <div class="left-panel">
+            <div class="output-display">
+                <div class="output-label">ENGINE:</div>
+                <div class="output-value" id="engineOutput">0.00</div>
+            </div>
+
+            <div class="output-display">
+                <div class="output-label">TURNING:</div>
+                <div class="output-value" id="turningOutput">0.00</div>
+            </div>
+
+            <div class="output-display fitness-display">
+                <div class="output-label">FITNESS:</div>
+                <div class="output-value" id="fitnessOutput">0.00</div>
+            </div>
+
+            <div class="output-display goal-display">
+                <div class="output-label">GOAL DISTANCE:</div>
+                <div class="output-value" id="goalDistance">∞</div>
+            </div>
+
+            <div class="output-display goal-display">
+                <div class="output-label">CARS REACHED GOAL:</div>
+                <div class="output-value" id="carsReachedGoal">0</div>
+            </div>
+
+            <div class="controls">
+                <button class="control-btn" onclick="togglePause()">⏸️ PAUSE</button>
+                <button class="control-btn" onclick="nextGeneration()">⏭️ NEXT GEN</button>
+                <button class="control-btn" onclick="resetSimulation()">🔄 RESET</button>
+                <button class="control-btn" onclick="toggleSensors()">👁️ SENSORS</button>
+            </div>
+
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #444;">
+                <div style="color: #888; font-size: 11px; margin-bottom: 5px;">SIMULATION SPEED:</div>
+                <button class="control-btn" onclick="setSpeed(1)" id="speed1">1x</button>
+                <button class="control-btn" onclick="setSpeed(2)" id="speed2">2x</button>
+                <button class="control-btn" onclick="setSpeed(5)" id="speed5">5x</button>
+                <button class="control-btn" onclick="setSpeed(10)" id="speed10">10x</button>
+            </div>
+
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #444;">
+                <div style="color: #888; font-size: 11px;">POPULATION: 20</div>
+                <div style="color: #888; font-size: 11px;">ALIVE: <span id="aliveCount">20</span></div>
+                <div style="color: #888; font-size: 11px;">MUTATION: 10%</div>
+                <div style="color: #0066ff; font-size: 11px; margin-top: 5px;">🎯 GOAL: REACH BLUE TARGET</div>
+                <div style="color: #ffa500; font-size: 11px; margin-top: 5px;">🧠 KNOWLEDGE: <span id="knowledgeLevel">0.0</span></div>
+                <div style="color: #ff6b6b; font-size: 10px; margin-top: 5px;">🏆 GAME STOPS AFTER 1 CAR WINS!</div>
+            </div>
+        </div>
+
+        <!-- Simulation Area -->
+        <div class="simulation-area">
+            <canvas id="simulationCanvas"></canvas>
+            <div class="generation-counter">
+                Generation: <span id="generationDisplay">1</span>
+            </div>
+            <div class="evolution-status" id="evolutionStatus">
+                🧬 EVOLVING TO GENERATION <span id="nextGenNumber">2</span>...
+            </div>
+            <div class="best-car-indicator" id="bestCarIndicator">
+                Following Best Car
+            </div>
+        </div>
+
+        <!-- Right Panel: Neural Network -->
+        <div class="right-panel">
+            <div class="neural-network-panel">
+                <div class="panel-title">NEURAL NETWORK</div>
+                <canvas id="neuralCanvas" width="220" height="300"></canvas>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <div style="color: #888; font-size: 10px; margin-bottom: 5px;">TOPOLOGY: 8-6-4-2 (Enhanced)</div>
+                <div style="color: #888; font-size: 10px; margin-bottom: 5px;">INPUTS: 5 Sensors + 3 Goal Awareness</div>
+                <div style="color: #888; font-size: 10px; margin-bottom: 5px;">OUTPUTS: Engine + Turning</div>
+                <div style="color: #888; font-size: 10px; margin-bottom: 10px;">WEIGHTS: <span style="color: #00ff00;">Green=Positive</span> <span style="color: #ff0000;">Red=Negative</span></div>
+                <div style="color: #0066ff; font-size: 10px; font-weight: bold;">GOAL KNOWLEDGE: <span id="goalKnowledge">0.0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let canvas, ctx, neuralCanvas, neuralCtx;
+        let geneticAlgorithm;
+        let isPaused = false;
+        let showSensors = false;
+        let frameCount = 0;
+        let obstacles = [];
+        let goal = null;
+        let cameraOffset = { x: 0, y: 0 };
+        let simulationSpeed = 1;
+        let isEvolving = false;
+        let evolutionTimer = 0;
+
+        // Enhanced Neural Network with Goal Awareness
+        class NeuralNetwork {
+            constructor() {
+                // Enhanced topology: 8 inputs (5 sensors + 3 goal awareness), 6 hidden1, 4 hidden2, 2 outputs
+                this.topology = [8, 6, 4, 2];
+                this.layers = this.topology.length;
+
+                this.weights = [];
+                this.biases = [];
+
+                for (let i = 0; i < this.layers - 1; i++) {
+                    this.weights[i] = [];
+                    this.biases[i] = [];
+
+                    for (let j = 0; j < this.topology[i + 1]; j++) {
+                        this.weights[i][j] = [];
+                        this.biases[i][j] = this.randomWeight();
+
+                        for (let k = 0; k < this.topology[i]; k++) {
+                            this.weights[i][j][k] = this.randomWeight();
+                        }
+                    }
+                }
+
+                this.lastInputs = [];
+                this.lastOutputs = [];
+                this.layerOutputs = [];
+                this.goalKnowledge = 0; // Inherited knowledge about goal-seeking
+            }
+
+            randomWeight() {
+                return (Math.random() * 2 - 1);
+            }
+
+            addRandomness() {
+                // Add extra randomness to make cars more diverse
+                for (let i = 0; i < this.layers - 1; i++) {
+                    for (let j = 0; j < this.topology[i + 1]; j++) {
+                        // Extra random bias variation
+                        this.biases[i][j] += (Math.random() - 0.5) * 1.0;
+
+                        for (let k = 0; k < this.topology[i]; k++) {
+                            // Extra random weight variation
+                            this.weights[i][j][k] += (Math.random() - 0.5) * 1.0;
+                        }
+                    }
+                }
+            }
+
+            sigmoid(x) {
+                return 1 / (1 + Math.exp(-Math.max(-500, Math.min(500, x))));
+            }
+
+            feedForward(inputs) {
+                if (inputs.length !== this.topology[0]) {
+                    console.warn(`Input size mismatch: expected ${this.topology[0]}, got ${inputs.length}`);
+                    return [0.5, 0.5];
+                }
+
+                this.lastInputs = [...inputs];
+                this.layerOutputs = [inputs];
+
+                let currentInputs = inputs;
+
+                for (let layer = 0; layer < this.layers - 1; layer++) {
+                    let layerOutputs = [];
+
+                    for (let neuron = 0; neuron < this.topology[layer + 1]; neuron++) {
+                        let sum = this.biases[layer][neuron];
+
+                        for (let input = 0; input < currentInputs.length; input++) {
+                            sum += currentInputs[input] * this.weights[layer][neuron][input];
+                        }
+
+                        layerOutputs[neuron] = this.sigmoid(sum);
+                    }
+
+                    this.layerOutputs.push(layerOutputs);
+                    currentInputs = layerOutputs;
+                }
+
+                this.lastOutputs = currentInputs;
+                return currentInputs;
+            }
+
+            // Transfer goal knowledge from successful parents
+            inheritGoalKnowledge(knowledge) {
+                this.goalKnowledge = knowledge;
+                // Bias weights toward goal-seeking behavior
+                for (let i = 0; i < this.layers - 1; i++) {
+                    for (let j = 0; j < this.topology[i + 1]; j++) {
+                        // Enhance goal-related input weights (inputs 5, 6, 7)
+                        for (let k = 5; k < Math.min(8, this.topology[i]); k++) {
+                            if (this.weights[i] && this.weights[i][j] && this.weights[i][j][k] !== undefined) {
+                                this.weights[i][j][k] *= (1 + knowledge * 0.1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            copy() {
+                let newNetwork = new NeuralNetwork();
+
+                for (let i = 0; i < this.layers - 1; i++) {
+                    for (let j = 0; j < this.topology[i + 1]; j++) {
+                        newNetwork.biases[i][j] = this.biases[i][j];
+                        for (let k = 0; k < this.topology[i]; k++) {
+                            newNetwork.weights[i][j][k] = this.weights[i][j][k];
+                        }
+                    }
+                }
+
+                // Copy goal knowledge
+                newNetwork.goalKnowledge = this.goalKnowledge;
+
+                return newNetwork;
+            }
+
+            mutate(mutationRate = 0.1) {
+                for (let i = 0; i < this.layers - 1; i++) {
+                    for (let j = 0; j < this.topology[i + 1]; j++) {
+                        if (Math.random() < mutationRate) {
+                            this.biases[i][j] += (Math.random() * 0.6 - 0.3);
+                            this.biases[i][j] = Math.max(-2, Math.min(2, this.biases[i][j]));
+                        }
+
+                        for (let k = 0; k < this.topology[i]; k++) {
+                            if (Math.random() < mutationRate) {
+                                this.weights[i][j][k] += (Math.random() * 0.6 - 0.3);
+                                this.weights[i][j][k] = Math.max(-2, Math.min(2, this.weights[i][j][k]));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Enhanced Car Class with Goal Awareness and RL
+        class Car {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.angle = Math.random() * 2 * Math.PI;
+                this.velocity = { x: 0, y: 0 };
+
+                let initialSpeed = 0.5 + Math.random() * 1.0;
+                this.velocity.x = Math.cos(this.angle) * initialSpeed;
+                this.velocity.y = Math.sin(this.angle) * initialSpeed;
+
+                this.width = 16;
+                this.height = 8;
+                this.maxSpeed = 4;
+                this.acceleration = 0;
+                this.steering = 0;
+
+                this.alive = true;
+                this.fitness = 0;
+                this.timeAlive = 0;
+                this.distanceTraveled = 0;
+                this.goalDistance = Infinity;
+                this.reachedGoal = false;
+                this.closestToGoal = Infinity;
+                this.progressToGoal = 0;
+
+                // Reinforcement Learning components
+                this.pathQuality = 0;
+                this.goalSeekingReward = 0;
+                this.explorationBonus = 0;
+                this.lastGoalDistance = Infinity;
+                this.consistentProgress = 0;
+
+                this.sensorAngles = [-45, -22.5, 0, 22.5, 45];
+                this.sensorRange = 100;
+                this.sensorReadings = [1, 1, 1, 1, 1];
+
+                this.brain = new NeuralNetwork();
+                this.brain.addRandomness();
+                this.trail = [];
+                this.maxTrailLength = 30;
+            }
+
+            update() {
+                if (!this.alive) return;
+
+                this.timeAlive++;
+                this.updateSensors();
+                this.updateGoalDistance();
+
+                // Enhanced neural network inputs with goal awareness
+                let enhancedInputs = [
+                    // Standard sensors (0-4)
+                    ...this.sensorReadings,
+
+                    // Goal awareness inputs (5-7)
+                    this.getGoalDirection(),     // Direction to goal (-1 to 1)
+                    this.getGoalProximity(),     // How close to goal (0 to 1)
+                    this.getProgressMomentum()   // Recent progress toward goal (-1 to 1)
+                ];
+
+                let outputs = this.brain.feedForward(enhancedInputs);
+
+                // Apply outputs with reinforcement learning adjustments
+                this.acceleration = (outputs[0] - 0.5) * 3;
+                this.steering = (outputs[1] - 0.5) * 2.5;
+
+                // RL: Reward progress toward goal
+                this.applyReinforcementLearning();
+
+                this.updatePhysics();
+                this.checkCollisions();
+                this.updateFitness();
+                this.updateTrail();
+            }
+
+            // Goal awareness methods
+            getGoalDirection() {
+                if (!goal) return 0;
+
+                let goalAngle = Math.atan2(goal.y - this.y, goal.x - this.x);
+                let angleDiff = goalAngle - this.angle;
+
+                // Normalize to -1 to 1
+                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+                return angleDiff / Math.PI;
+            }
+
+            getGoalProximity() {
+                if (!goal) return 0;
+
+                let maxDistance = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+                return Math.max(0, 1 - (this.goalDistance / maxDistance));
+            }
+
+            getProgressMomentum() {
+                if (this.lastGoalDistance === Infinity) return 0;
+
+                let progress = (this.lastGoalDistance - this.goalDistance) / 10; // Normalized progress
+                return Math.max(-1, Math.min(1, progress));
+            }
+
+            // Reinforcement Learning component
+            applyReinforcementLearning() {
+                // Reward getting closer to goal
+                if (this.lastGoalDistance !== Infinity) {
+                    let progressThisStep = this.lastGoalDistance - this.goalDistance;
+
+                    if (progressThisStep > 0) {
+                        this.goalSeekingReward += progressThisStep * 0.1;
+                        this.consistentProgress++;
+                    } else {
+                        this.consistentProgress = Math.max(0, this.consistentProgress - 1);
+                    }
+                }
+
+                // Path quality assessment
+                let currentDistance = this.goalDistance;
+                let optimalDistance = Math.sqrt(
+                    Math.pow(goal.x - 80, 2) + Math.pow(goal.y - (canvas.height/2), 2)
+                );
+
+                this.pathQuality = Math.max(0, 1 - (currentDistance / optimalDistance));
+
+                // Exploration bonus for new areas
+                let explorationScore = this.distanceTraveled / (this.timeAlive + 1);
+                this.explorationBonus = Math.min(100, explorationScore);
+            }
+
+            updateSensors() {
+                for (let i = 0; i < 5; i++) {
+                    let sensorAngle = this.angle + (this.sensorAngles[i] * Math.PI / 180);
+                    let minDistance = this.sensorRange;
+
+                    let rayX = Math.cos(sensorAngle);
+                    let rayY = Math.sin(sensorAngle);
+
+                    // Check walls
+                    if (rayX > 0) minDistance = Math.min(minDistance, (canvas.width - this.x) / rayX);
+                    if (rayX < 0) minDistance = Math.min(minDistance, this.x / -rayX);
+                    if (rayY > 0) minDistance = Math.min(minDistance, (canvas.height - this.y) / rayY);
+                    if (rayY < 0) minDistance = Math.min(minDistance, this.y / -rayY);
+
+                    // Check obstacles
+                    for (let obstacle of obstacles) {
+                        let obstacleDistance = this.getRayObstacleDistance(rayX, rayY, obstacle);
+                        minDistance = Math.min(minDistance, obstacleDistance);
+                    }
+
+                    this.sensorReadings[i] = Math.max(0, minDistance) / this.sensorRange;
+                }
+            }
+
+            getRayObstacleDistance(rayX, rayY, obstacle) {
+                let tMin = 0;
+                let tMax = this.sensorRange;
+
+                if (Math.abs(rayX) > 0.0001) {
+                    let tx1 = (obstacle.x - this.x) / rayX;
+                    let tx2 = (obstacle.x + obstacle.width - this.x) / rayX;
+                    tMin = Math.max(tMin, Math.min(tx1, tx2));
+                    tMax = Math.min(tMax, Math.max(tx1, tx2));
+                }
+
+                if (Math.abs(rayY) > 0.0001) {
+                    let ty1 = (obstacle.y - this.y) / rayY;
+                    let ty2 = (obstacle.y + obstacle.height - this.y) / rayY;
+                    tMin = Math.max(tMin, Math.min(ty1, ty2));
+                    tMax = Math.min(tMax, Math.max(ty1, ty2));
+                }
+
+                if (tMin <= tMax && tMax > 0) {
+                    return Math.max(0, tMin);
+                }
+
+                return this.sensorRange;
+            }
+
+            updatePhysics() {
+                let forwardX = Math.cos(this.angle);
+                let forwardY = Math.sin(this.angle);
+
+                // Apply acceleration in forward direction
+                this.velocity.x += forwardX * this.acceleration * 0.12;
+                this.velocity.y += forwardY * this.acceleration * 0.12;
+
+                // Apply steering (reduced sensitivity to prevent excessive circling)
+                let speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+                if (speed > 0.1) {
+                    this.angle += this.steering * 0.015 * Math.min(speed, 2); // Reduced steering sensitivity
+                }
+
+                // Reduced drag to allow for more straight-line movement
+                this.velocity.x *= 0.98;
+                this.velocity.y *= 0.98;
+
+                // Speed limiting
+                if (speed > this.maxSpeed) {
+                    this.velocity.x = (this.velocity.x / speed) * this.maxSpeed;
+                    this.velocity.y = (this.velocity.y / speed) * this.maxSpeed;
+                }
+
+                // Update position
+                let oldX = this.x;
+                let oldY = this.y;
+
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+
+                // Track distance
+                let deltaX = this.x - oldX;
+                let deltaY = this.y - oldY;
+                this.distanceTraveled += Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            }
+
+            checkCollisions() {
+                if (this.x < this.width/2 || this.x > canvas.width - this.width/2 ||
+                    this.y < this.height/2 || this.y > canvas.height - this.height/2) {
+                    this.alive = false;
+                    return;
+                }
+
+                for (let obstacle of obstacles) {
+                    if (this.x - this.width/2 < obstacle.x + obstacle.width &&
+                        this.x + this.width/2 > obstacle.x &&
+                        this.y - this.height/2 < obstacle.y + obstacle.height &&
+                        this.y + this.height/2 > obstacle.y) {
+                        this.alive = false;
+                        return;
+                    }
+                }
+            }
+
+            updateGoalDistance() {
+                if (goal) {
+                    this.lastGoalDistance = this.goalDistance;
+
+                    let dx = this.x - goal.x;
+                    let dy = this.y - goal.y;
+                    this.goalDistance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Track closest approach to goal
+                    if (this.goalDistance < this.closestToGoal) {
+                        this.closestToGoal = this.goalDistance;
+                    }
+
+                    // Calculate progress percentage
+                    let maxDistance = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+                    this.progressToGoal = Math.max(0, 1 - (this.closestToGoal / maxDistance)) * 100;
+
+                    // Check if reached goal
+                    if (this.goalDistance < goal.radius + this.width/2) {
+                        this.reachedGoal = true;
+                        console.log(`🎯 GOAL REACHED! Car fitness: ${this.fitness.toFixed(0)}, Generation: ${geneticAlgorithm.generation}`);
+                    }
+                }
+            }
+
+            // Enhanced fitness function with Reinforcement Learning
+            updateFitness() {
+                this.fitness = 0;
+
+                // Base survival reward
+                this.fitness += this.timeAlive * 0.5;
+
+                // Movement reward
+                this.fitness += this.distanceTraveled * 0.3;
+
+                // MAJOR: Goal-seeking behavior rewards
+                if (goal) {
+                    // Progress toward goal (0-1000 points)
+                    let maxDistance = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+                    let progressReward = (maxDistance - this.closestToGoal) / maxDistance * 1000;
+                    this.fitness += progressReward;
+
+                    // RL: Goal-seeking reward
+                    this.fitness += this.goalSeekingReward * 10;
+
+                    // RL: Path quality reward
+                    this.fitness += this.pathQuality * 500;
+
+                    // RL: Consistent progress bonus
+                    this.fitness += this.consistentProgress * 50;
+
+                    // RL: Exploration bonus
+                    this.fitness += this.explorationBonus;
+
+                    // ULTIMATE: Goal reached mega bonus
+                    if (this.reachedGoal) {
+                        this.fitness += 10000;
+                        console.log(`🏆 VICTORY! Final fitness: ${this.fitness.toFixed(0)}`);
+                    }
+                }
+
+                // Penalty for staying still
+                let speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+                if (speed < 0.1) {
+                    this.fitness -= 2;
+                }
+            }
+
+            updateTrail() {
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > this.maxTrailLength) {
+                    this.trail.shift();
+                }
+            }
+
+            draw(ctx, rank = 0) {
+                // Draw trail
+                if (this.trail.length > 1) {
+                    ctx.globalAlpha = 0.4;
+                    if (this.reachedGoal) {
+                        ctx.strokeStyle = '#0066ff'; // Blue trail for successful cars
+                    } else {
+                        ctx.strokeStyle = rank === 0 ? '#00ff00' : rank === 1 ? '#ffff99' : '#666666';
+                    }
+                    ctx.lineWidth = this.reachedGoal ? 2 : 1;
+                    ctx.beginPath();
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Draw sensors
+                if (showSensors && this.alive && rank < 3) {
+                    for (let i = 0; i < 5; i++) {
+                        let sensorAngle = this.angle + (this.sensorAngles[i] * Math.PI / 180);
+                        let distance = this.sensorReadings[i] * this.sensorRange;
+
+                        let endX = this.x + Math.cos(sensorAngle) * distance;
+                        let endY = this.y + Math.sin(sensorAngle) * distance;
+
+                        ctx.strokeStyle = '#ffff00';
+                        ctx.lineWidth = 1;
+                        ctx.globalAlpha = 0.6;
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(endX, endY);
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#ffff00';
+                        ctx.fillRect(endX - 2, endY - 2, 4, 4);
+                    }
+                    ctx.globalAlpha = 1;
+                }
+
+                // Draw car
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                if (!this.alive) {
+                    ctx.fillStyle = '#333333';
+                } else if (this.reachedGoal) {
+                    ctx.fillStyle = '#0066ff'; // Blue for cars that reached goal
+                } else if (rank === 0) {
+                    ctx.fillStyle = '#00ff00';
+                } else if (rank === 1) {
+                    ctx.fillStyle = '#ffff99';
+                } else {
+                    ctx.fillStyle = '#666666';
+                }
+
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(this.width/2 - 2, -2, 4, 4);
+
+                ctx.restore();
+
+                // Draw goal reached indicator
+                if (this.reachedGoal) {
+                    ctx.fillStyle = '#0066ff';
+                    ctx.font = '12px Arial';
+                    ctx.fillText('GOAL!', this.x - 15, this.y - 20);
+                }
+            }
+        }
+
+        // Enhanced Genetic Algorithm with Knowledge Transfer
+        class GeneticAlgorithm {
+            constructor() {
+                this.populationSize = 20;
+                this.mutationRate = 0.1;
+                this.generation = 1;
+                this.population = [];
+                this.bestFitnessEver = 0;
+                this.carsReachedGoal = 0;
+                this.goalKnowledge = 0; // Accumulated knowledge about goal-seeking
+                this.gameWon = false;
+                this.winner = null;
+
+                this.initializePopulation();
+            }
+
+            initializePopulation() {
+                this.population = [];
+                for (let i = 0; i < this.populationSize; i++) {
+                    // More diverse starting positions
+                    let startX = 80 + Math.random() * 40; // Spread out horizontally
+                    let startY = (canvas.height / 4) + Math.random() * (canvas.height / 2); // Spread vertically
+                    let car = new Car(startX, startY);
+
+                    // Additional randomness to neural networks
+                    car.brain.mutate(0.3); // Extra initial mutation
+
+                    this.population.push(car);
+                }
+                console.log(`Generation ${this.generation}: Initialized ${this.population.length} cars with random directions`);
+            }
+
+            evolve() {
+                console.log(`🧬 EVOLVING: Generation ${this.generation} → ${this.generation + 1}`);
+
+                // Check for victory condition
+                let winners = this.population.filter(car => car.reachedGoal);
+                if (winners.length > 0) {
+                    this.gameWon = true;
+                    this.winner = winners[0];
+                    console.log(`🏆 GAME WON! Generation ${this.generation}, Car reached goal!`);
+                    console.log(`🎯 Winning fitness: ${this.winner.fitness.toFixed(0)}`);
+                    console.log(`📈 Total knowledge accumulated: ${this.goalKnowledge.toFixed(2)}`);
+                    return; // Stop evolution
+                }
+
+                // Sort by fitness
+                this.population.sort((a, b) => b.fitness - a.fitness);
+
+                // Update knowledge base from successful cars
+                this.updateGoalKnowledge();
+
+                // Track statistics
+                let bestFitness = this.population[0] ? this.population[0].fitness : 0;
+                this.bestFitnessEver = Math.max(this.bestFitnessEver, bestFitness);
+                this.carsReachedGoal = this.population.filter(car => car.reachedGoal).length;
+
+                console.log(`📊 Best fitness: ${bestFitness.toFixed(0)}, Goal knowledge: ${this.goalKnowledge.toFixed(2)}`);
+
+                // Show evolution message
+                document.getElementById('evolutionStatus').style.display = 'block';
+                document.getElementById('nextGenNumber').textContent = this.generation + 1;
+
+                setTimeout(() => {
+                    document.getElementById('evolutionStatus').style.display = 'none';
+                }, 800);
+
+                let newPopulation = [];
+
+                // Elite preservation with knowledge transfer
+                if (this.population.length > 0) {
+                    let eliteChild = this.createChild(this.population[0]);
+                    eliteChild.brain.inheritGoalKnowledge(this.goalKnowledge);
+                    newPopulation.push(eliteChild);
+                }
+                if (this.population.length > 1) {
+                    let eliteChild2 = this.createChild(this.population[1]);
+                    eliteChild2.brain.inheritGoalKnowledge(this.goalKnowledge * 0.8);
+                    newPopulation.push(eliteChild2);
+                }
+
+                // Create enhanced offspring
+                while (newPopulation.length < this.populationSize) {
+                    let parent1 = this.selectParent();
+                    let parent2 = this.selectParent();
+                    let child = this.crossover(parent1, parent2);
+
+                    // Transfer partial knowledge to children
+                    child.brain.inheritGoalKnowledge(this.goalKnowledge * (0.3 + Math.random() * 0.4));
+                    child.brain.mutate(this.mutationRate);
+
+                    newPopulation.push(child);
+                }
+
+                this.population = newPopulation;
+                this.generation++;
+
+                // Initialize new cars with current knowledge
+                for (let car of this.population) {
+                    car.updateSensors();
+                    car.brain.feedForward([...car.sensorReadings, 0, 0, 0]);
+                }
+
+                console.log(`✅ Evolution complete! Generation ${this.generation} with enhanced goal knowledge`);
+            }
+
+            // Update accumulated knowledge about goal-seeking
+            updateGoalKnowledge() {
+                let totalProgress = 0;
+                let successfulCars = 0;
+
+                for (let car of this.population) {
+                    if (car.progressToGoal > 10) { // Cars that made significant progress
+                        totalProgress += car.progressToGoal;
+                        totalProgress += car.pathQuality * 100;
+                        totalProgress += car.goalSeekingReward;
+                        successfulCars++;
+                    }
+                }
+
+                if (successfulCars > 0) {
+                    let averageProgress = totalProgress / successfulCars;
+                    this.goalKnowledge += averageProgress * 0.01; // Accumulate knowledge
+                    this.goalKnowledge = Math.min(this.goalKnowledge, 10); // Cap at 10
+
+                    console.log(`🧠 Knowledge updated: ${this.goalKnowledge.toFixed(2)} (from ${successfulCars} successful cars)`);
+                }
+            }
+
+            selectParent() {
+                // Tournament selection
+                let best = null;
+                for (let i = 0; i < 3; i++) {
+                    let candidate = this.population[Math.floor(Math.random() * this.population.length)];
+                    if (!best || candidate.fitness > best.fitness) {
+                        best = candidate;
+                    }
+                }
+                return best;
+            }
+
+            crossover(parent1, parent2) {
+                // More diverse starting positions for children
+                let startX = 80 + Math.random() * 40;
+                let startY = (canvas.height / 4) + Math.random() * (canvas.height / 2);
+                let child = new Car(startX, startY);
+
+                for (let i = 0; i < child.brain.layers - 1; i++) {
+                    for (let j = 0; j < child.brain.topology[i + 1]; j++) {
+                        child.brain.biases[i][j] = Math.random() < 0.5 ?
+                            parent1.brain.biases[i][j] : parent2.brain.biases[i][j];
+
+                        for (let k = 0; k < child.brain.topology[i]; k++) {
+                            child.brain.weights[i][j][k] = Math.random() < 0.5 ?
+                                parent1.brain.weights[i][j][k] : parent2.brain.weights[i][j][k];
+                        }
+                    }
+                }
+
+                return child;
+            }
+
+            createChild(parent) {
+                // More diverse starting positions for elite children
+                let startX = 80 + Math.random() * 40;
+                let startY = (canvas.height / 4) + Math.random() * (canvas.height / 2);
+                let child = new Car(startX, startY);
+                child.brain = parent.brain.copy();
+                return child;
+            }
+
+            getBest() {
+                if (this.population.length === 0) {
+                    console.warn("⚠️ No cars in population!");
+                    return null;
+                }
+
+                let best = this.population[0];
+                for (let car of this.population) {
+                    if (car.fitness > best.fitness) {
+                        best = car;
+                    }
+                }
+                return best;
+            }
+
+            getSecondBest() {
+                if (this.population.length < 2) return this.getBest();
+                let sorted = [...this.population].sort((a, b) => b.fitness - a.fitness);
+                return sorted[1];
+            }
+
+            getAliveCount() {
+                return this.population.filter(car => car.alive).length;
+            }
+
+            getCarsReachedGoal() {
+                return this.population.filter(car => car.reachedGoal).length;
+            }
+        }
+
+        function initializeSimulation() {
+            canvas = document.getElementById('simulationCanvas');
+            ctx = canvas.getContext('2d');
+            neuralCanvas = document.getElementById('neuralCanvas');
+            neuralCtx = neuralCanvas.getContext('2d');
+
+            // Set canvas size
+            canvas.width = canvas.parentElement.offsetWidth;
+            canvas.height = canvas.parentElement.offsetHeight;
+
+            // Create obstacles
+            obstacles = [
+                { x: 200, y: 100, width: 20, height: 200 },
+                { x: 400, y: 300, width: 20, height: 200 },
+                { x: 600, y: 150, width: 20, height: 250 },
+                { x: 350, y: 450, width: 150, height: 20 },
+                { x: 550, y: 50, width: 100, height: 20 },
+            ];
+
+            // Create the ultimate goal (blue target)
+            goal = {
+                x: canvas.width - 100,
+                y: canvas.height / 2,
+                radius: 30
+            };
+
+            // Initialize genetic algorithm
+            geneticAlgorithm = new GeneticAlgorithm();
+
+            console.log("🎯 Simulation initialized with ultimate goal!");
+            console.log("Canvas size:", canvas.width, "x", canvas.height);
+            console.log("Goal position:", goal.x, goal.y);
+            console.log("Population:", geneticAlgorithm.population.length);
+        }
+
+        function update() {
+            if (isPaused) return;
+
+            // Check for victory condition
+            if (geneticAlgorithm.gameWon) {
+                isPaused = true;
+                showVictoryScreen();
+                return;
+            }
+
+            // Run simulation at specified speed
+            for (let speedStep = 0; speedStep < simulationSpeed; speedStep++) {
+                frameCount++;
+
+                // Update all cars
+                for (let car of geneticAlgorithm.population) {
+                    car.update();
+
+                    // Check for immediate victory
+                    if (car.reachedGoal && !geneticAlgorithm.gameWon) {
+                        geneticAlgorithm.gameWon = true;
+                        geneticAlgorithm.winner = car;
+                        isPaused = true;
+                        showVictoryScreen();
+                        return;
+                    }
+                }
+
+                // Check evolution conditions - ONLY when all cars are dead
+                let aliveCount = geneticAlgorithm.getAliveCount();
+
+                // STRICT RULE: Only evolve when ALL cars are dead
+                let shouldEvolve = (aliveCount === 0);
+
+                if (shouldEvolve) {
+                    console.log(`🧬 EVOLUTION TRIGGERED: ALL CARS DEAD (alive=${aliveCount})`);
+                    try {
+                        geneticAlgorithm.evolve();
+
+                        // Check if game was won during evolution
+                        if (geneticAlgorithm.gameWon) {
+                            isPaused = true;
+                            showVictoryScreen();
+                            return;
+                        }
+
+                        frameCount = 0;
+                        console.log(`✅ Evolution successful! New generation: ${geneticAlgorithm.generation}, Population: ${geneticAlgorithm.population.length}`);
+                    } catch (error) {
+                        console.error("❌ Evolution failed:", error);
+                    }
+                    break; // Break out of speed loop to update UI
+                }
+            }
+
+            // Always update UI, even if there was an error
+            try {
+                updateUI();
+            } catch (error) {
+                console.error("❌ UI Update failed:", error);
+            }
+        }
+
+        function showVictoryScreen() {
+            // Show victory message
+            document.getElementById('evolutionStatus').innerHTML = `
+                🏆 VICTORY ACHIEVED!<br>
+                Generation: ${geneticAlgorithm.generation}<br>
+                Knowledge Level: ${geneticAlgorithm.goalKnowledge.toFixed(1)}
+            `;
+            document.getElementById('evolutionStatus').style.display = 'block';
+            document.getElementById('evolutionStatus').style.background = 'rgba(0, 255, 0, 0.9)';
+            document.getElementById('evolutionStatus').style.color = 'black';
+
+            console.log(`🎉 GAME COMPLETED!`);
+            console.log(`🏆 Victory achieved in generation ${geneticAlgorithm.generation}`);
+            console.log(`🧠 Final knowledge level: ${geneticAlgorithm.goalKnowledge.toFixed(2)}`);
+            console.log(`🎯 Winning car fitness: ${geneticAlgorithm.winner.fitness.toFixed(0)}`);
+        }
+
+        function updateUI() {
+            let bestCar = geneticAlgorithm.getBest();
+
+            if (bestCar) {
+                // Only update if neural network has been run
+                if (bestCar.brain.lastOutputs && bestCar.brain.lastOutputs.length >= 2) {
+                    document.getElementById('engineOutput').textContent =
+                        bestCar.brain.lastOutputs[0].toFixed(2);
+                    document.getElementById('turningOutput').textContent =
+                        bestCar.brain.lastOutputs[1].toFixed(2);
+                } else {
+                    document.getElementById('engineOutput').textContent = "0.50";
+                    document.getElementById('turningOutput').textContent = "0.50";
+                }
+
+                document.getElementById('fitnessOutput').textContent =
+                    bestCar.fitness.toFixed(0);
+
+                document.getElementById('goalDistance').textContent =
+                    bestCar.goalDistance < Infinity ? bestCar.goalDistance.toFixed(0) + 'px' : '∞';
+
+                // Only draw neural network if it has valid data
+                if (bestCar.brain.layerOutputs && bestCar.brain.layerOutputs.length > 0) {
+                    drawNeuralNetwork(bestCar.brain);
+                }
+            } else {
+                document.getElementById('engineOutput').textContent = "0.00";
+                document.getElementById('turningOutput').textContent = "0.00";
+                document.getElementById('fitnessOutput').textContent = "0";
+                document.getElementById('goalDistance').textContent = "∞";
+            }
+
+            document.getElementById('generationDisplay').textContent = geneticAlgorithm.generation;
+            document.getElementById('aliveCount').textContent = geneticAlgorithm.getAliveCount();
+            document.getElementById('carsReachedGoal').textContent = geneticAlgorithm.getCarsReachedGoal();
+
+            // Update goal knowledge displays
+            document.getElementById('goalKnowledge').textContent = geneticAlgorithm.goalKnowledge.toFixed(1);
+            document.getElementById('knowledgeLevel').textContent = geneticAlgorithm.goalKnowledge.toFixed(1);
+        }
+
+        function drawNeuralNetwork(brain) {
+            neuralCtx.clearRect(0, 0, neuralCanvas.width, neuralCanvas.height);
+
+            // Check if brain has valid data
+            if (!brain || !brain.layerOutputs || brain.layerOutputs.length === 0) {
+                // Draw placeholder network structure
+                neuralCtx.fillStyle = '#666';
+                neuralCtx.font = '12px Arial';
+                neuralCtx.textAlign = 'center';
+                neuralCtx.fillText('Neural Network', neuralCanvas.width/2, neuralCanvas.height/2 - 10);
+                neuralCtx.fillText('Initializing...', neuralCanvas.width/2, neuralCanvas.height/2 + 10);
+                return;
+            }
+
+            const layerSpacing = 50;
+            const startX = 30;
+            const startY = 50;
+            const nodeRadius = 8;
+
+            // Draw connections
+            for (let layer = 0; layer < brain.layers - 1; layer++) {
+                const currentLayerSize = brain.topology[layer];
+                const nextLayerSize = brain.topology[layer + 1];
+
+                for (let from = 0; from < currentLayerSize; from++) {
+                    for (let to = 0; to < nextLayerSize; to++) {
+                        const weight = brain.weights[layer][to][from];
+
+                        const fromX = startX + layer * layerSpacing;
+                        const fromY = startY + from * 40;
+                        const toX = startX + (layer + 1) * layerSpacing;
+                        const toY = startY + to * 40;
+
+                        const absWeight = Math.abs(weight);
+                        const lineWidth = Math.max(0.5, absWeight * 3);
+
+                        neuralCtx.strokeStyle = weight > 0 ? '#00ff00' : '#ff0000';
+                        neuralCtx.lineWidth = lineWidth;
+                        neuralCtx.globalAlpha = Math.min(0.8, absWeight);
+
+                        neuralCtx.beginPath();
+                        neuralCtx.moveTo(fromX, fromY);
+                        neuralCtx.lineTo(toX, toY);
+                        neuralCtx.stroke();
+                    }
+                }
+            }
+
+            neuralCtx.globalAlpha = 1;
+
+            // Draw nodes
+            for (let layer = 0; layer < brain.layers; layer++) {
+                const layerSize = brain.topology[layer];
+                const layerOutputs = brain.layerOutputs[layer] || [];
+
+                for (let node = 0; node < layerSize; node++) {
+                    const x = startX + layer * layerSpacing;
+                    const y = startY + node * 40;
+
+                    const activation = layerOutputs[node] || 0;
+
+                    neuralCtx.fillStyle = `rgba(255, 255, 255, ${0.3 + activation * 0.7})`;
+                    neuralCtx.beginPath();
+                    neuralCtx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
+                    neuralCtx.fill();
+
+                    neuralCtx.strokeStyle = '#00ff00';
+                    neuralCtx.lineWidth = 2;
+                    neuralCtx.stroke();
+                }
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw obstacles
+            ctx.fillStyle = '#666666';
+            for (let obstacle of obstacles) {
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            }
+
+            // Draw the ultimate goal (blue target with pulsing animation)
+            if (goal) {
+                // Outer glow
+                let gradient = ctx.createRadialGradient(goal.x, goal.y, 0, goal.x, goal.y, goal.radius * 2);
+                gradient.addColorStop(0, 'rgba(0, 102, 255, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(0, 102, 255, 0.4)');
+                gradient.addColorStop(1, 'rgba(0, 102, 255, 0)');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(goal.x, goal.y, goal.radius * 2, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Main goal circle
+                ctx.fillStyle = '#0066ff';
+                ctx.beginPath();
+                ctx.arc(goal.x, goal.y, goal.radius, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Goal border
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Goal text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GOAL', goal.x, goal.y + 5);
+            }
+
+            // Sort and draw cars
+            let sortedCars = [...geneticAlgorithm.population].sort((a, b) => {
+                // Prioritize cars that reached goal, then by fitness
+                if (a.reachedGoal && !b.reachedGoal) return -1;
+                if (!a.reachedGoal && b.reachedGoal) return 1;
+                return b.fitness - a.fitness;
+            });
+
+            // Draw dead cars first
+            for (let i = 0; i < sortedCars.length; i++) {
+                if (!sortedCars[i].alive) {
+                    sortedCars[i].draw(ctx, i);
+                }
+            }
+
+            // Draw alive cars
+            for (let i = 0; i < sortedCars.length; i++) {
+                if (sortedCars[i].alive) {
+                    sortedCars[i].draw(ctx, i);
+                }
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Control functions
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.querySelectorAll('.control-btn')[0];
+            btn.textContent = isPaused ? '▶️ RESUME' : '⏸️ PAUSE';
+        }
+
+        function nextGeneration() {
+            console.log("🚀 MANUAL EVOLUTION TRIGGERED");
+            geneticAlgorithm.evolve();
+            frameCount = 0;
+        }
+
+        function resetSimulation() {
+            console.log("🔄 RESETTING SIMULATION");
+            geneticAlgorithm = new GeneticAlgorithm();
+            frameCount = 0;
+            document.getElementById('evolutionStatus').style.display = 'none';
+        }
+
+        function toggleSensors() {
+            showSensors = !showSensors;
+            const btn = document.querySelectorAll('.control-btn')[3];
+            btn.textContent = showSensors ? '👁️ HIDE SENSORS' : '👁️ SENSORS';
+        }
+
+        function setSpeed(speed) {
+            simulationSpeed = speed;
+
+            // Update button styles
+            ['speed1', 'speed2', 'speed5', 'speed10'].forEach(id => {
+                document.getElementById(id).classList.remove('speed-active');
+            });
+            document.getElementById('speed' + speed).classList.add('speed-active');
+
+            console.log(`⚡ SIMULATION SPEED SET TO: ${speed}x`);
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', function(e) {
+            switch(e.key) {
+                case ' ':
+                    e.preventDefault();
+                    togglePause();
+                    break;
+                case 'r':
+                case 'R':
+                    resetSimulation();
+                    break;
+                case 'n':
+                case 'N':
+                    nextGeneration();
+                    break;
+                case 's':
+                case 'S':
+                    toggleSensors();
+                    break;
+            }
+        });
+
+        // Initialize when page loads
+        window.addEventListener('load', function() {
+            console.log("🎯 STRICT EVOLUTION RULES:");
+            console.log("- Evolution ONLY when ALL cars are dead");
+            console.log("- Cars start with random directions for diversity");
+            console.log("- Reduced circular motion, more straight-line movement");
+            initializeSimulation();
+            setSpeed(1); // Initialize speed to 1x
+            gameLoop();
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (canvas && goal) {
+                canvas.width = canvas.parentElement.offsetWidth;
+                canvas.height = canvas.parentElement.offsetHeight;
+
+                // Reposition goal to maintain relative position
+                goal.x = canvas.width - 100;
+                goal.y = canvas.height / 2;
+            }
+        });
+    </script>
+</body>
+</html>
